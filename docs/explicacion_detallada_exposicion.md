@@ -20,22 +20,44 @@ Imagina que tienes dos mundos corriendo al mismo tiempo dentro de tu computadora
 
    Por último, **Grafana** (puerto `3000`) se conecta a Prometheus, consulta esos datos y los dibuja en **3 tableros** en tiempo real.
 
-```text
-  [Navegador / k6]
-         |
-         v  (http://localhost:8080)
-     [ Nginx ]  <--- puerto interno 8081 (/nginx_status) <--- [ nginx-exporter :9113 ]
-      /  |  \                                                           |
-     v   v   v                                                          |
-  [b-1] [b-2] [b-3]  (puerto interno 3000)                              |
-     |   |   |                                                          |
-     +---+---+--- (/metrics) ---> [ Prometheus :9090 ] <----------------+
-                                           ^                            |
-                                           |                            |
-                                    [ cAdvisor :8080 ] -----------------+
-                                           |
-                                           v
-                                   [ Grafana :3000 ]
+```mermaid
+flowchart LR
+    subgraph Host["Computador (Host)"]
+        Nav["Navegador / k6"]
+
+        subgraph Docker["Docker - Red privada (monitoring-net)"]
+            direction TB
+
+            subgraph Backends["Réplicas Backend (:3000)"]
+                direction LR
+                B1["backend-1"]
+                B2["backend-2"]
+                B3["backend-3"]
+            end
+
+            Nginx["Nginx (:80)"]
+            Exp["nginx-exporter (:9113)"]
+            Cad["cAdvisor (CPU, RAM, red, disco)"]
+            Prom["Prometheus (BD de métricas)"]
+            Graf["Grafana (Tableros)"]
+
+            Nginx --> B1
+            Nginx --> B2
+            Nginx --> B3
+
+            Nginx -. "/nginx_status" .-> Exp
+            Exp --> Prom
+            Cad --> Prom
+            B1 -. "/metrics" .-> Prom
+            B2 -. "/metrics" .-> Prom
+            B3 -. "/metrics" .-> Prom
+            Prom --> Graf
+        end
+
+        Nav -- ":8080" --> Nginx
+        Nav -- ":9090" --> Prom
+        Nav -- ":3000" --> Graf
+    end
 ```
 
 ---

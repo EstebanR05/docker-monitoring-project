@@ -10,17 +10,44 @@ Stack de infraestructura y observabilidad con Docker Compose para una API de ges
 
 ## Arquitectura
 
-```text
-Cliente HTTP
-   │
-   ▼
-Nginx (Puerto 8080 -> 80)  ──► /nginx_status ──► nginx-exporter (:9113)
-   │                                                      │
-   ├──► backend-1 (:3000) ──► /metrics ───────────────────┤
-   ├──► backend-2 (:3000) ──► /metrics ───────────────────┼──► Prometheus (:9090) ──► Grafana (:3000)
-   └──► backend-3 (:3000) ──► /metrics ───────────────────┤
-                                                          │
-cAdvisor (:8080 interno) ─────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph Host["Computador (Host)"]
+        Nav["Navegador / k6"]
+
+        subgraph Docker["Docker - Red privada (monitoring-net)"]
+            direction TB
+
+            subgraph Backends["Réplicas Backend (:3000)"]
+                direction LR
+                B1["backend-1"]
+                B2["backend-2"]
+                B3["backend-3"]
+            end
+
+            Nginx["Nginx (:80)"]
+            Exp["nginx-exporter (:9113)"]
+            Cad["cAdvisor (CPU, RAM, red, disco)"]
+            Prom["Prometheus (BD de métricas)"]
+            Graf["Grafana (Tableros)"]
+
+            Nginx --> B1
+            Nginx --> B2
+            Nginx --> B3
+
+            Nginx -. "/nginx_status" .-> Exp
+            Exp --> Prom
+            Cad --> Prom
+            B1 -. "/metrics" .-> Prom
+            B2 -. "/metrics" .-> Prom
+            B3 -. "/metrics" .-> Prom
+            Prom --> Graf
+        end
+
+        Nav -- ":8080" --> Nginx
+        Nav -- ":9090" --> Prom
+        Nav -- ":3000" --> Graf
+    end
 ```
 
 Todos los servicios se comunican a través de la red bridge `monitoring-net`. Prometheus y Grafana persisten sus datos en los volúmenes `prometheus_data` y `grafana_data`.
