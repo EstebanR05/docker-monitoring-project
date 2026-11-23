@@ -305,3 +305,14 @@ http://localhost:9090/graph?g0.expr=&g0.tab=1&g0.display_mode=lines&g0.show_exem
 
 **Backend:**
 http://localhost:8080/
+
+### Interpretación de los resultados en Grafana (`Incident API - Overview`)
+
+Al ejecutar la prueba de carga con `k6`, el tablero principal refleja el comportamiento esperado del sistema:
+
+| Panel | Qué observar | Significado |
+| :--- | :--- | :--- |
+| **Targets UP** | Los 6 servicios (`backend-1`, `backend-2`, `backend-3`, `cadvisor`, `prometheus` y `nginx-exporter`) en estado **UP** (verde). | Todos los objetivos están activos y siendo recolectados correctamente por Prometheus. |
+| **Request Rate per Instance** | Las 3 líneas (`backend-1`, `backend-2` y `backend-3`) suben juntas hasta ~25 req/s cada una. | Demuestra visualmente que Nginx distribuye la carga de manera uniforme (*round-robin*). |
+| **p95 Latency** | La latencia bajo carga se mantiene alrededor de **~5 ms**. | El sistema responde con holgura, muy por debajo del umbral de 500 ms definido en `k6`. |
+| **HTTP Status Codes** | Únicamente respuestas exitosas (**HTTP 200** y **HTTP 201**). | Sin errores de servidor ni peticiones fallidas durante la prueba de carga. |
