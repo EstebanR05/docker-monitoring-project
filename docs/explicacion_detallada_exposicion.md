@@ -222,3 +222,50 @@ Cuando corrés `k6 run tests/load-test.js`:
   Si hago `docker-compose down`, los volúmenes `prometheus_data` y `grafana_data` conservan los datos. Solo se borran si agrego explícitamente `-v` (`docker-compose down -v`).
 - **¿Tener 3 réplicas significa alta disponibilidad total?**
   Permite repartir carga y tolerar la caída de una instancia de backend, pero Nginx sigue siendo un único punto de entrada en esta arquitectura y los datos en memoria no se replican entre instancias (para producción real se agregaría base de datos compartida y múltiples proxies/orquestador).
+
+---
+
+## 12. Cómo entrar y usar Prometheus y Grafana paso a paso (para mostrar en vivo)
+
+### 12.1 Panel de Prometheus (`http://localhost:9090`)
+
+**Para qué sirve:** es el motor que recolecta y guarda las métricas crudas en tiempo real. En una exposición se usa para demostrar que todos los servicios están conectados y entregando datos antes de pasar a los gráficos bonitos de Grafana.
+
+**Cómo entrar y qué mostrar:**
+1. Abrí **`http://localhost:9090`** en tu navegador (no pide usuario ni contraseña).
+2. **Ver los Targets (lo primero que te van a pedir ver):**
+   - En el menú superior entrá a **Status → Targets**.
+   - Vas a ver los 4 grupos configurados en `prometheus.yml`:
+     - `backend` (`backend-1:3000`, `backend-2:3000`, `backend-3:3000`)
+     - `nginx-exporter` (`nginx-exporter:9113`)
+     - `cadvisor` (`cadvisor:8080`)
+     - `prometheus` (`localhost:9090`)
+   - Todos deben figurar con etiqueta verde **`UP`** y una columna *Last Scrape* reciente (cada 15s).
+3. **Probar consultas rápidas (pestaña *Graph*):**
+   - Hacé clic en **Graph** arriba a la izquierda, escribí una métrica en la barra *Expression* y presioná **Execute**:
+     - `http_requests_total` → muestra el total acumulado de peticiones por instancia y ruta.
+     - `rate(http_requests_total[1m])` → muestra peticiones por segundo en el último minuto.
+     - `nginx_connections_active` → muestra conexiones activas en Nginx.
+   - Podés alternar entre la pestaña **Table** (valores numéricos exactos) y **Graph** (línea en el tiempo).
+
+---
+
+### 12.2 Panel de Grafana (`http://localhost:3000`)
+
+**Para qué sirve:** convierte las métricas numéricas de Prometheus en **tableros visuales interactivos** para monitorear salud del servicio, latencia, balanceo y consumo de recursos de los contenedores.
+
+**Cómo entrar y qué mostrar:**
+1. Abrí **`http://localhost:3000`** en tu navegador.
+2. Iniciá sesión con:
+   - **Usuario:** `admin`
+   - **Contraseña:** `admin`
+   - *(Si te pide cambiar la contraseña la primera vez, hacé clic en **Skip** abajo).*
+3. **Cómo abrir los 3 tableros ya preparados:**
+   - Abrí el menú lateral izquierdo (ícono de hamburguesa `☰`) y entrá a **Dashboards**.
+   - Ahí vas a ver los 3 tableros cargados automáticamente por provisioning:
+     1. **`Incident API - Overview`**: muestra qué instancias están `UP`, cuántas peticiones por segundo (`req/s`) atiende cada `backend-1/2/3`, la latencia `p95`, los códigos HTTP (`200`, `201`, `404`, etc.) y las peticiones activas en vuelo.
+     2. **`Docker Containers (cAdvisor)`**: muestra el consumo de CPU, memoria RAM y tráfico de red (RX/TX) de cada contenedor Docker.
+     3. **`Nginx Load Balancer`**: muestra conexiones activas (`reading`, `writing`, `waiting`), conexiones aceptadas/atendidas y peticiones por segundo en el proxy.
+4. **Truco clave para la demo en vivo:**
+   - Arriba a la derecha del tablero cambiá el rango de tiempo a **`Last 5 minutes`** (o `Last 15 minutes`) y activá el auto-refresco cada **`5s`** (el ícono de flechas circulares `↻`). Así, cuando corras `curl` o `k6`, vas a ver moverse las gráficas casi al instante.
+   - Si querés confirmar el datasource, en el menú izquierdo entrá a **Connections → Data sources** y vas a ver **`Prometheus`** configurado apuntando a `http://prometheus:9090`.
