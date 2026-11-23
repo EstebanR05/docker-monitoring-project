@@ -269,3 +269,39 @@ Cuando corrés `k6 run tests/load-test.js`:
 4. **Truco clave para la demo en vivo:**
    - Arriba a la derecha del tablero cambiá el rango de tiempo a **`Last 5 minutes`** (o `Last 15 minutes`) y activá el auto-refresco cada **`5s`** (el ícono de flechas circulares `↻`). Así, cuando corras `curl` o `k6`, vas a ver moverse las gráficas casi al instante.
    - Si querés confirmar el datasource, en el menú izquierdo entrá a **Connections → Data sources** y vas a ver **`Prometheus`** configurado apuntando a `http://prometheus:9090`.
+
+---
+
+## 13. Resumen rápido para la demo
+
+- **Docker y Docker Compose:** Empaquetan cada parte del sistema en contenedores aislados y los levantan todos juntos en una red privada (`monitoring-net`) con un solo comando.
+- **Backend (NestJS, 3 réplicas):** Es la API de incidentes (`backend-1`, `backend-2`, `backend-3`). Cada copia atiende peticiones, devuelve su `instanceId` y expone sus métricas en `/metrics`.
+- **Nginx:** Actúa como proxy inverso y balanceador de carga. Recibe todo el tráfico en el puerto `8080` y lo reparte por turnos (*round-robin*) entre las 3 réplicas del backend.
+- **Nginx Prometheus Exporter:** Lee las estadísticas internas de Nginx (`/nginx_status`) y las traduce a un formato que Prometheus entiende.
+- **cAdvisor:** Vigila los contenedores a nivel de infraestructura: mide cuánto CPU, memoria RAM, red y disco consume cada uno.
+- **Prometheus:** Es el recolector y base de datos de métricas. Cada 15 segundos consulta al backend, al exportador de Nginx y a cAdvisor para guardar el historial.
+- **Grafana:** Toma los datos guardados en Prometheus y los muestra en tableros visuales en tiempo real (tráfico por instancia, latencia, errores y uso de recursos).
+- **k6:** Es la herramienta de pruebas de carga (`tests/load-test.js`). Simula hasta 25 usuarios simultáneos pegándole a Nginx para comprobar que el balanceo funciona y que los tiempos de respuesta se mantienen bajos.
+
+```bash
+docker run --rm -i grafana/k6 run -e BASE_URL=http://host.docker.internal:8080 - < tests/load-test.js
+```
+
+**Grafana**
+http://localhost:3000/d/incident-api-overview/incident-api-overview?from=now-15m&to=now&timezone=browser&refresh=5s
+
+Para ingresar solo es:
+- correo: `admin`
+- pass: `admin`
+
+Luego para ver métricas ir a **Incident API - Overview**.
+
+**Prometheus**
+http://localhost:9090/graph?g0.expr=&g0.tab=1&g0.display_mode=lines&g0.show_exemplars=0&g0.range_input=1h
+
+- `up` (muestra los 6 servicios activos)
+- `rate(http_requests_total[1m])` (peticiones por segundo en cada réplica)
+- `nginx_http_requests_total` (total de peticiones atendidas por Nginx)
+
+**Backend:**
+http://localhost:8080/
